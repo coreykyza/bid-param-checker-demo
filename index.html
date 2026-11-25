@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>招投标参数对照工具</title>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="data/hw-specs.js"></script>
+<script src="data/hw-matcher.js"></script>
+<style>
+:root{
+  --primary:#2563eb; --primary-hover:#1d4ed8; --primary-soft:#eff6ff;
+  --bg:#f5f7fa; --panel:#ffffff; --border:#e4e7ed; --text:#1f2937;
+  --muted:#6b7280; --red:#dc2626; --red-bg:#fef2f2; --green:#059669;
+  --green-bg:#ecfdf5; --amber:#d97706; --amber-bg:#fffbeb;
+  --radius:10px; --shadow:0 1px 3px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 24px 60px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px;flex-wrap:wrap}
+h1{font-size:22px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:10px}
+h1 .badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--primary-soft);color:var(--primary)}
+.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.mode-tip{font-size:12px;padding:9px 14px;border-radius:8px;display:none;align-items:center;gap:8px}
+.mode-tip.show{display:flex}
+.mode-tip.demo{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+.mode-tip.live{background:var(--green-bg);color:var(--green);border:1px solid #a7f3d0}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card .hd{padding:15px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.card .hd .step{width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.card .bd{padding:18px}
+label.field{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 7px}
+.drop{border:1.5px dashed #c7d2e0;border-radius:9px;padding:26px 16px;text-align:center;cursor:pointer;transition:.15s;background:#fbfcfe}
+.drop:hover,.drop.drag{border-color:var(--primary);background:var(--primary-soft)}
+.drop .ico{font-size:26px;margin-bottom:6px}
+.drop .t{font-size:13px;font-weight:600}
+.drop .h{font-size:11px;color:var(--muted);margin-top:4px}
+input[type=file]{display:none}
+.fileinfo{margin-top:12px;padding:10px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-size:12px;display:none}
+.fileinfo.show{display:block}
+.fileinfo b{color:var(--primary)}
+.opts{margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.opt-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.opt-row input[type=number]{width:74px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:center}
+.btn{width:100%;padding:11px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-hover)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{background:#fff;color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.actions{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.progress{margin-top:14px;display:none}
+.progress.show{display:block}
+.progress .bar{height:7px;background:#eef2f7;border-radius:5px;overflow:hidden}
+.progress .bar i{display:block;height:100%;background:var(--primary);width:0%;transition:width .25s;border-radius:5px}
+.progress .txt{font-size:11px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:11px 12px}
+.stat .n{font-size:20px;font-weight:700;line-height:1.2}
+.stat .l{font-size:11px;color:var(--muted);margin-top:2px}
+.stat.neg .n{color:var(--red)} .stat.pos .n{color:var(--green)} .stat.unc .n{color:var(--amber)}
+.tbl-wrap{max-height:560px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+th{background:#f8fafc;position:sticky;top:0;z-index:2;text-align:left;padding:9px 11px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border)}
+th:nth-child(1){width:46px}th:nth-child(2){width:30%}th:nth-child(3){width:30%}th:nth-child(4){width:40%}
+td{padding:9px 11px;border-bottom:1px solid #f0f2f5;vertical-align:top;word-break:break-word;white-space:pre-wrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fbfcfe}
+td.rn{color:var(--muted);font-variant-numeric:tabular-nums}
+.empty{padding:50px 20px;text-align:center;color:var(--muted);font-size:13px}
+.empty .ico{font-size:34px;margin-bottom:10px;opacity:.5}
+.res-neg{background:var(--red-bg)!important;color:#991b1b;border-left:3px solid var(--red)}
+.res-pos{color:#065f46}.res-unc{color:#92400e}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin-right:5px}
+.tag.n{background:#fee2e2;color:#991b1b}.tag.p{background:#d1fae5;color:#065f46}.tag.u{background:#fef3c7;color:#92400e}
+.tag.ok{background:#e0e7ff;color:#3730a3}
+.sec{font-weight:600;margin:3px 0 1px}
+.lici{margin-left:2px}
+footer{margin-top:22px;text-align:center;color:var(--muted);font-size:11px}
+details{margin-top:14px;font-size:12px;color:var(--muted)}
+summary{cursor:pointer;font-weight:600;color:var(--text)}
+details pre{background:#0f172a;color:#cbd5e1;padding:14px;border-radius:8px;overflow:auto;font-size:11px;margin-top:10px;line-height:1.55}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1f2937;color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;opacity:0;transition:.25s;z-index:99;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.2)}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ===== 型号参数库面板 ===== */
+.sp-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:50;align-items:center;justify-content:center;padding:24px}
+.sp-modal.show{display:flex}
+.sp-dialog{background:#fff;border-radius:12px;width:100%;max-width:1080px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.sp-head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)}
+.sp-title{font-size:15px;font-weight:700;color:var(--text)}
+.sp-sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6}
+.sp-x{margin-left:auto;border:none;background:transparent;font-size:16px;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px}
+.sp-x:hover{background:#f1f5f9;color:var(--text)}
+.sp-body{overflow:auto;padding:14px 20px 18px}
+.sp-tabs{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.sp-tab{border:1px solid var(--border);background:#fff;color:var(--muted);font-size:12px;padding:5px 12px;border-radius:999px;cursor:pointer}
+.sp-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.sp-search{margin-left:auto;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;width:180px}
+.sp-table{width:100%;border-collapse:collapse;font-size:12px}
+.sp-table th{background:#f8fafc;color:var(--muted);font-weight:600;text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);position:sticky;top:0}
+.sp-table td{padding:3px 4px;border-bottom:1px solid #f1f5f9}
+.sp-table input{width:100%;border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px}
+.sp-table input:focus{outline:none;border-color:var(--primary)}
+.sp-model{width:150px!important;font-weight:600}
+.sp-del{border:none;background:transparent;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:5px}
+.sp-del:hover{background:#fee2e2;color:#dc2626}
+.sp-foot{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.sp-tip{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7;background:#f8fafc;border-radius:8px;padding:10px 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🔍 招投标参数对照工具 <span class="badge">v2.4</span></h1>
+      <div class="sub">上传 Excel → AI 逐行比对招标要求（A列）与投标响应（B列）→ C列输出结论并标红负偏离 → 导出结果</div>
+    </div>
+    <div id="modeTip" class="mode-tip"></div>
+  </header>
+
+  <div class="grid">
+    <!-- 左栏 -->
+    <div class="card">
+      <div class="hd"><span class="step">1</span>上传与配置</div>
+      <div class="bd">
+        <label class="field">Excel 文件（.xlsx / .xls）</label>
+        <div class="drop" id="drop">
+          <div class="ico">📄</div>
+          <div class="t">点击选择或拖拽文件到此处</div>
+          <div class="h">读取第一个工作表 · A列=招标要求 · B列=投标响应</div>
+        </div>
+        <input type="file" id="file" accept=".xlsx,.xls">
+        <div class="fileinfo" id="fileinfo"></div>
+
+        <div class="opts">
+          <div class="opt-row"><span>单次核验行数上限</span><input type="number" id="maxRows" value="100" min="1" max="500"></div>
+          <div class="opt-row"><span>每批发送行数</span><input type="number" id="batchSize" value="5" min="1" max="50"></div>
+          <div class="opt-row"><span>并发请求数</span><input type="number" id="concurrency" value="4" min="1" max="10"></div>
+          <div class="opt-row" style="margin-bottom:0"><span>代理地址</span><input type="text" id="proxyUrl" value="http://127.0.0.1:8765" style="width:150px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px"></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="btnVerify" disabled>开始核验</button>
+          <button class="btn btn-ghost" id="btnDemo">载入演示样例</button>
+          <button class="btn btn-ghost" id="btnSample" >下载样例 Excel</button>
+          <button class="btn btn-ghost" id="btnExport" disabled>导出核验结果 Excel</button>
+          <button class="btn btn-ghost" id="btnSpecs" title="型号参数库：把 i5-14500 这类型号展开成参数再比对">📚 型号参数库</button>
+        </div>
+
+        <div class="progress" id="progress">
+          <div class="bar"><i id="pbar"></i></div>
+          <div class="txt"><span id="pmsg">准备中…</span><span id="ppct">0%</span></div>
+        </div>
+
+        <details>
+          <summary>核验规则说明</summary>
+          <div style="margin-top:8px">
+            ① 从 B2 起逐行比对 An（招标要求）与 Bn（投标响应），结果写入 Cn。<br>
+            ② 结论两档：全部满足 / 部分满足。C 列输出"共N项：负偏离X/待确认Y/匹配Z/正偏离W"，下方只列负偏离与待确认明细。<br>
+            ③ 负偏离=响应低于要求；正偏离=响应优于要求；待确认=表述含糊、置信度低于 0.75。<br>
+            ④ 含负偏离行的 C 单元格整格标红。单次最多核验 100 行。
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 右栏 -->
+    <div class="card">
+      <div class="hd"><span class="step">2</span>核验结果</div>
+      <div class="bd" id="resultBody">
+        <div class="empty"><div class="ico">📊</div>上传 Excel 并开始核验后，结果将在此展示</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>产研流程 v2.4 · A列招标要求 / B列投标响应 / C列核验结论 · 数据仅在本机处理，API Key 不进入前端</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- 型号参数库面板 -->
+<div class="sp-modal" id="spModal">
+  <div class="sp-dialog">
+    <div class="sp-head">
+      <div>
+        <div class="sp-title">型号参数库</div>
+        <div class="sp-sub">把投标侧型号展开成参数，与招标要求逐项比较。内置条目可编辑覆盖，新增条目保存在本机浏览器。</div>
+      </div>
+      <button class="sp-x" id="spClose">✕</button>
+    </div>
+    <div class="sp-body" id="spModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ========================= 全局状态 ========================= */
+const S = {
+  wb: null, ws: null, rows: [], results: [], fileName: '', mode: 'demo', busy: false,
+};
+const $ = id => document.getElementById(id);
+
+function toast(msg, ms=2600){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+/* ============ 文本归一化 & 确定性判定层（v1.2）============
+   目标：完全一致、数值边界类判定不依赖大模型，本地直接结论，
+   并消除空格/全角半角/标点差异对判定的干扰。 */
+// 归一化：全角转半角、去所有空白、统一常见标点、去尾部句点
+function normText(s){
+  return String(s??'')
+    .replace(/[\uFF01-\uFF5E]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)) // 全角→半角
+    .replace(/[\u3000\s\u00A0]+/g,'')        // 去所有空白
+    .replace(/[，,、]/g,',')                  // 逗号统一
+    .replace(/[；;]/g,';').replace(/[：:]/g,':')
+    .replace(/[（(]/g,'(').replace(/[）)]/g,')')
+    .replace(/[“”"‘’]/g,'"')
+    .replace(/[。．.]+$/,'')                  // 去尾部句点
+    .toLowerCase();
+}
+/* ============ v2.0 条目拆分：保留招标原文序号 ============
+   序号必须与 A 列原文完全一致：原文 "1、" → seq="1、"；原文 "二、1" → seq="二、1"
+   seqRaw 保存原始写法（含分隔符），用于 C 列 【seqRaw】 输出 */
+function splitItems(text){
+  const s=String(text??'').trim();
+  if(!s) return [];
+  const lines=s.split('\n');
+  const items=[]; let section='';
+  const pushItem=(seqRaw,body,lineIdx)=>{
+    items.push({seq:seqRaw, seqRaw, text:body.trim(), lineIdx, section});
+  };
+  lines.forEach((line,i)=>{
+    const t=line.trim(); if(!t) return;
+    // 章节标题行：一、xxx / 【xxx】 → 记录上下文，不算条目
+    // 注意：'二、1、xxx' 是条目而非章节（后面还有数字），要先排除
+    const cn=t.match(/^([一二三四五六七八九十百]+)\s*[、.．]\s*(.*)$/);
+    if(cn && /^[一二三四五六七八九十百]+$/.test(cn[1])){
+      // 若逗号后紧跟数字（如"二、1、屏幕支持触控"），这是二级序号条目，不是章节标题
+      if(!/^\s*\d/.test(cn[2])){ section=cn[1]; return; }
+    }
+    const bracket=t.match(/^【(.+?)】$/);
+    if(bracket){ section=bracket[1]; return; }
+    // 纯标题行：以冒号结尾、无数字无比较符、长度很短（如"沙盘主机："）→ 当分组标题，不算条目
+    if(/[：:]\s*$/.test(t) && t.length <= 15 && !/\d/.test(t) && !/[≥≤<>]|不少于|不低于|至少|不超过/.test(t)){
+      section = t.replace(/[：:]\s*$/,'');
+      return;
+    }
+    // 条目行：捕获原始序号写法（数字+分隔符 / 中文序号+分隔符）
+    // 支持两级序号：'二、1、xxx' → seqRaw='二、1、'；'1、xxx' → seqRaw='1、'；'（3）xxx' → seqRaw='（3）'
+    const dm=t.match(/^((?:[一二三四五六七八九十百]+[、.．]\s*)?(?:\d+|[（(]\d+[）)])\s*[、.．)）:：])\s*(.*)$/);
+    if(dm){
+      const seqRaw=dm[1].trim();               // 如 "1、" / "二、1" / "（3）"
+      const seqNum=seqRaw.replace(/[、.．)）:：\s]/g,''); // 纯标识 "1" / "二" / "3"
+      // 中文序号带章节前缀时（"二、1"）原文就是两级，seqRaw 已是完整形式
+      pushItem(seqRaw,dm[2],i);
+      items[items.length-1].seqNum=seqNum;
+      items[items.length-1].seqSection=section;
+      return;
+    }
+    // 无编号内容行：独立成条（seq 为空 → C 列不加【】）。
+    // 不并入上一条：无编号区块往往一行一个参数（如"分辨率：1080P 或 2K"），
+    // 并成一条会让模型面对超长条目，输出巨大且极慢。
+    pushItem('',t,i);
+  });
+  if(!items.length) return [{seq:'',seqRaw:'',seqNum:'',text:s,lineIdx:0,section:'',idx:1}];
+  const out=items.filter(x=>x.text);
+  out.forEach((x,i)=>{ x.idx=i+1; });   // A 列内全局序号：模型回传 n，前端按 n 精确对齐
+  // 同一序号在单元格内可能重复（多章节各有"1."），记录它是第几次出现，
+  // 这样 A 的第 k 个"1."能精确对上 B 的第 k 个"1."
+  const occ={};
+  out.forEach(x=>{ occ[x.seqRaw]=(occ[x.seqRaw]||0)+1; x.seqOcc=occ[x.seqRaw]; });
+  return out;
+}
+// 数值提取
+function nums(s){ return (String(s??'').match(/\d+(?:\.\d+)?/g)||[]).map(Number); }
+// 单条目：文本一致 或 ≥/≤ 边界值相等 → 确定匹配
+function itemSame(ap,bp){
+  if(normText(ap)===normText(bp)) return true;
+  const na=normText(ap), nb=normText(bp);
+  const ma=nums(ap), mb=nums(bp);
+  if(ma.length && mb.length && ma[0]===mb[0] && /[≥≤]/.test(ap)){
+    if(na.replace(/[≥≤\d.]/g,'')===nb.replace(/[≥≤\d.]/g,'')) return true;
+  }
+  return false;
+}
+// 本地确定性判定：A/B 归一化一致 → 该条目匹配
+/* ============ v2.0 逐条状态装配 ============
+   模型给出每条状态；本地确定性规则做最终裁决（文本一致/数值边界）。
+   返回 [{seq,seqRaw,text,status,note,confidence}] */
+function buildItemStates(p,g){
+  const src=splitItems(p.a);
+  const bItems=splitItems(p.b);
+  const nb=normText(p.b||'');
+  const raw=Array.isArray(g.items)?g.items:[];
+  // 把模型返回的条目按 seq / 文本对齐到 A 列条目
+  const out=[];
+  src.forEach((it,ix)=>{
+    // 匹配优先级：位置优先（模型被要求按原文顺序输出全部条目），
+    // 再按序号、再按文本。位置优先可避免不同章节下重复序号（如多段都有"1."）导致错位。
+    // 匹配优先级：uid 精确匹配（防模型乱序导致错位）→ 序号+文本 → 位置兜底
+    const valid=x=>x&&['matched','positive','negative','uncertain'].includes(String(x.status||'').toLowerCase());
+    let m=null;
+    if(it.idx) m=raw.find(x=>x&&Number(x.n)===it.idx);   // 全局序号精确匹配（首选）
+    if(!m||!valid(m)) m=raw.find(x=>x&&String(x.seq??'').trim()===it.seqRaw&&normText(String(x.text??''))===normText(it.text));
+    if(!m||!valid(m)) m=raw.find(x=>x&&String(x.seq??'').trim()===it.seqRaw);
+    if(!m||!valid(m)) m=raw[ix]&&valid(raw[ix])?raw[ix]:null;
+    let status=m?String(m.status||'').toLowerCase():'';
+    let note=m?String(m.note||''):'';
+    let conf=m&&m.confidence!=null?Number(m.confidence):null;
+
+    // ---- 本地确定性裁决（覆盖模型） ----
+    // 1) 找 B 中对应的条目：
+    //    首选「同序号 + 同出现次序」——A 的第 k 个"1."精确对上 B 的第 k 个"1."，
+    //    这对多章节重复序号同样正确，且比文本相似度可靠得多；
+    //    找不到时退回文本相似度。
+    let bp=bItems.find(x=>it.seqRaw&&x.seqRaw===it.seqRaw&&x.seqOcc===it.seqOcc);
+    if(!bp && bItems.length){
+      let best=null,bestScore=0;
+      bItems.forEach(x=>{ const s=scoreOverlap(it.text,x.text); if(s>bestScore){bestScore=s;best=x;} });
+      if(bestScore>=0.5) bp=best;
+    }
+    if(bp && itemSame(it.text,bp.text)){
+      status='matched'; note=''; conf=null;
+    }else if(bp){
+      // 2) 数值方向裁决。裁决后【重写 note】——模型给的措辞可能与实际方向相反
+      //    （如把"响应16GB"写成"低于要求的8GB"），沿用会让结论自相矛盾。
+      const dir=numericVerdict(it.text,bp.text);
+      if(dir){
+        status=dir; note=dirNote(dir,it.text,bp.text); conf=null;
+      }else if(status==='matched'){
+        // 数值不可比但语义已匹配 → 保持匹配，理由写"响应内容与要求一致"
+        note='';
+      }
+    }
+    // 3) B 中找不到任何相关内容 → 待确认（需求明确要求）
+    if(!bp && !hasAnyCounterpart(p.b,it.text)){
+      status='uncertain';
+      note='投标参数中未找到对应内容';
+      conf=conf==null?0.5:conf;
+    }
+    // 4) 型号参数库裁决：把 B 里的型号名展开成参数，与招标要求逐项比。
+    //    解决"招标≥6核12线程、投标 i5-14500"这类需要硬件知识才能判的场景。
+    const hw=judgeBySpecs(it.text, bp?bp.text:'', p.b);
+    if(hw){
+      status=hw.status; note=hw.note; conf=hw.confidence!=null?hw.confidence:conf;
+      if(hw.status==='uncertain') conf=conf==null?0.5:conf;
+    }
+    // 5) 需求映射：模型理由表明"投标未提及/未提供"时，属"找不到对应内容"→ 应为待确认而非负偏离。
+    //    但若理由里同时表达了"明确不满足"（数量不足/低于要求等），那是负偏离，不能改。
+    const noteStr=String(note);
+    const missing=/未提及|未提供|未找到|未说明|未响应|没有提及|未体现|未列明|未标明|无对应|未包含/;
+    const explicitBad=/不足|低于|少于|小于|未达到|不满足|不达标|达不到|不符|相悖|劣于|达不到要求/;
+    if(status==='negative' && missing.test(noteStr) && !explicitBad.test(noteStr)){
+      status='uncertain';
+      note='投标参数中未找到对应内容';
+      conf=conf==null?0.5:conf;
+    }
+    // 无模型输入且本地判不出 → pending（交给 AI）；有模型输入但状态非法 → uncertain
+    if(!['matched','positive','negative','uncertain'].includes(status)) status = m ? 'uncertain' : 'pending';
+    if(status==='uncertain'&&conf==null) conf=0.5;
+    out.push({seq:it.seq,seqRaw:it.seqRaw,text:it.text,status,note,confidence:conf,
+              bText:bp?bp.text:''});
+  });
+  return out;
+}
+// 两个文本的相似度（用于找 B 中对应条目）
+// 用 2-gram 滑窗命中率而非长词匹配：像"内存≥8GB DDR4高速内存,支持后续扩展" vs
+// "内存16GB DDR4高速内存,支持后续扩展"，长词分词会把 ≥8 与 16 的差异放大，导致相似度过低找不到对应条目
+function scoreOverlap(a,b){
+  const na=normText(a), nb=normText(b);
+  if(!na||!nb) return 0;
+  if(na===nb) return 1;
+  if(na.includes(nb)||nb.includes(na)) return 0.85;
+  const grams=[];
+  for(let i=0;i+2<=na.length;i++){
+    const g=na.slice(i,i+2);
+    if(/^[\u4e00-\u9fa5]{2}$/.test(g)||/[a-z0-9]{2}/.test(g)) grams.push(g);
+  }
+  if(!grams.length) return 0;
+  let hit=0; grams.forEach(g=>{ if(nb.includes(g)) hit++; });
+  return hit/grams.length;
+}
+// 取「数值 + 其后紧跟的单位」，用于校验两个数值是否可比
+function numWithUnit(text){
+  const m=String(text||'').match(/(\d+(?:\.\d+)?)\s*([^\d\s,，。；;：:、（）()]{0,5})/);
+  if(!m) return null;
+  let unit=(m[2]||'').trim();
+  unit=unit.replace(/[（(].*$/,'').replace(/[。．.]$/,'');
+  // 单位归一：大小写统一；中文单位保留
+  if(/^[A-Za-z]+$/.test(unit)) unit=unit.toLowerCase();
+  return {n:parseFloat(m[1]), unit};
+}
+// 数值方向裁决：返回 matched/positive/negative/null
+// 单位不一致时【不裁决】——如"使用时间≥110min" vs "电池续航16小时"，两个数字不可比，
+// 硬比会产出"响应16，低于要求的110"这种误导性结论。
+function numericVerdict(aText,bText){
+  // 多阈值条目不裁决：如"积木种类≥90种，积木数量≥900块"有两个阈值，
+  // 只比第一个数值会把"10mm"当阈值算，得出错误结论。这类交给模型逐项判。
+  const nThresh=(aText.match(/[≥≤]|>=|<=|不少于|不低于|不小于|不超过|不大于|至少|最多/g)||[]).length;
+  if(nThresh>1) return null;
+  const lowM=aText.match(/[≥]|>=|不低于|不少于|不小于|至少|大于等于/);
+  const highM=aText.match(/[≤]|<=|不超过|不大于|最高|最多|小于等于/);
+  const av=nums(aText), bv=nums(bText);
+  if(!av.length||!bv.length) return null;
+  const ua=numWithUnit(aText), ub=numWithUnit(bText);
+  if(ua&&ub&&ua.unit&&ub.unit&&ua.unit!==ub.unit) return null;   // 单位不同，不可比
+  if(lowM){ return bv[0]<av[0] ? 'negative' : (bv[0]>av[0] ? 'positive' : 'matched'); }
+  if(highM){ return bv[0]>av[0] ? 'negative' : (bv[0]<av[0] ? 'positive' : 'matched'); }
+  // 纯数字相等
+  if(av[0]===bv[0] && /\d/.test(aText)) return 'matched';
+  return null;
+}
+function dirNote(dir,aText,bText){
+  const av=nums(aText)[0], bv=nums(bText)[0];
+  if(dir==='negative') return `响应${bv}，低于要求的${av}`;
+  if(dir==='positive') return `响应${bv}，优于要求的${av}`;
+  return `响应${bv}，等于要求的${av}`;
+}
+// A 条目在 B 全文中是否有任何相关内容（用于区分"找不到对应内容"与"明确不满足"）
+// 中文用 2-gram 滑窗，避免"配件种类"这类长词整体匹配不上"配件3种"而误判为无关
+function hasAnyCounterpart(bText,aText){
+  const nb=normText(bText||''); if(!nb) return false;
+  const stop=new Set(['支持','具备','提供','要求','包括','以及','其他','功能','参数','系统','设备','响应','满足','不得','可以','进行','实现','采用']);
+  const raw=aText.match(/[A-Za-z][A-Za-z0-9]{1,}|[\u4e00-\u9fa5]{2,}|\d+(?:\.\d+)?/g)||[];
+  for(const w0 of raw){
+    const w=normText(w0);
+    if(!w||stop.has(w)) continue;
+    if(/[\u4e00-\u9fa5]/.test(w)){
+      // 中文：任意 2 字子串命中即视为相关
+      let hit=false;
+      for(let i=0;i+2<=w.length;i++){ if(nb.includes(w.slice(i,i+2))){ hit=true; break; } }
+      if(hit) return true;
+    } else if(nb.includes(w)) return true;
+  }
+  return false;
+}
+// 判断某条偏离项对应的参数点是否"其实满足"（用于剔除模型的误判）
+
+// 判断某参数点在 B 中是否完全找不到对应内容（用于"未找到对应项→待确认"）
+
+// 本地确定性核验：返回 null 表示需交给 AI；否则返回完整判定
+
+
+/* ========================= 启动探测 ========================= */
+async function detectMode(){
+  const url=$('proxyUrl').value.replace(/\/$/,'');
+  try{
+    const ctl=new AbortController(); const tid=setTimeout(()=>ctl.abort(),2500);
+    const r=await fetch(url+'/health',{signal:ctl.signal}); clearTimeout(tid);
+    const d=await r.json();
+    if(r.ok && d.ok && d.key_configured){ S.mode='live'; }
+    else if(r.ok && d.ok){ S.mode='nKey'; }
+    else { S.mode='demo'; }
+  }catch(e){ S.mode='demo'; }
+  const tip=$('modeTip');
+  if(S.mode==='live'){
+    tip.className='mode-tip show live';
+    let model='glm-4-flash';
+    try{ const d=await (await fetch(url+'/health')).json(); model=d.model||model; }catch(e){}
+    tip.innerHTML=`<span class="dot"></span>真实核验已就绪 · 模型 ${esc(model)}`;
+  } else if(S.mode==='nKey'){
+    tip.className='mode-tip show demo';
+    tip.innerHTML='<span class="dot"></span>代理已启动但未配置 API Key · 将使用演示模式';
+    S.mode='demo';
+  } else {
+    tip.className='mode-tip show demo';
+    tip.innerHTML='<span class="dot"></span>演示模式 · 本地代理未启动（运行 <b>python3 server.py</b> 后访问 <b>http://localhost:8765</b> 启用真实核验）';
+  }
+}
+$('proxyUrl').addEventListener('change',detectMode);
+
+/* ========================= 文件读取 ========================= */
+function handleFile(file){
+  if(!file) return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(ext!=='xlsx' && ext!=='xls'){ toast('请上传 .xlsx / .xls 文件'); return; }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellStyles:true});
+      loadWorkbook(wb,file.name);
+    }catch(err){ toast('Excel 解析失败：'+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+$('file').addEventListener('change',e=>handleFile(e.target.files[0]));
+const drop=$('drop');
+drop.addEventListener('click',()=>$('file').click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');handleFile(e.dataTransfer.files[0])});
+
+function loadWorkbook(wb,name){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  if(!ws){ toast('工作表为空'); return; }
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+  // 校验列存在（至少表头行或第二行起有 B 列内容）
+  let rows=[];
+  for(let i=1;i<aoa.length;i++){
+    const a=String(aoa[i][0]??'').trim(), b=String(aoa[i][1]??'').trim();
+    if(!a && !b) continue;
+    rows.push({row:i+1,a,b});
+  }
+  if(!rows.length){ toast('未找到可核验的数据行（A/B 列）'); return; }
+  S.wb=wb; S.ws=ws; S.rows=rows; S.results=[]; S.fileName=name||'参数表';
+  const cap=parseInt($('maxRows').value)||100;
+  const info=$('fileinfo');
+  info.innerHTML=`文件：<b>${esc(S.fileName)}</b><br>有效数据行：<b>${rows.length}</b> 行${rows.length>cap?` · <span style="color:var(--red)">超出上限 ${rows.length-cap} 行将不核验</span>`:''}`;
+  info.classList.add('show');
+  $('btnVerify').disabled=false; $('btnExport').disabled=true;
+  renderTable(true);
+  toast(`已载入 ${rows.length} 行数据`);
+}
+
+/* ========================= 演示数据 ========================= */
+const DEMO=[
+  {a:'cpu 主频不低于 2.5GHz，核心数不少于 8 核', b:'CPU 主频 2.5GHz，8 核处理器'},
+  {a:'支持 IEEE 802.11ac 无线协议', b:'支持 WiFi 6（802.11ax），向下兼容 802.11ac'},
+  {a:'设备工作温度范围 -20℃ 至 60℃', b:'工作温度 -10℃ 至 55℃'},
+  {a:'内存容量 ≥ 16GB DDR4', b:'内存 8GB DDR4'},
+  {a:'提供 3 年整机质保服务', b:'提供 3 年整机质保，可选延保至 5 年'},
+  {a:'设备应具备良好的防水防尘能力，达到较高防护等级', b:'防护等级 IP65'},
+  {a:'支持千兆有线网络接口', b:'支持千兆有线网络接口'},
+  {a:'整机功耗不超过 150W', b:'典型功耗 120W，最大功耗 145W'},
+];
+function loadDemo(){
+  const aoa=[['招标参数要求','投标响应'],...DEMO.map(d=>[d.a,d.b])];
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:38},{wch:38},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,ws,'参数对照');
+  loadWorkbook(wb,'演示样例.xlsx');
+}
+$('btnDemo').addEventListener('click',loadDemo);
+$('btnSample').addEventListener('click',()=>{
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([['招标参数要求','投标响应','核验结论'],...DEMO.map(d=>[d.a,d.b,''])]);
+  ws['!cols']=[{wch:38},{wch:38},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,ws,'参数对照');
+  XLSX.writeFile(wb,'招投标参数对照_样例.xlsx');
+  toast('样例 Excel 已下载');
+});
+
+/* ========================= 演示模式比对（本地规则兜底） ========================= */
+function demoGrade(pairs){
+  return pairs.map(p=>{
+    const items=splitItems(p.a).map(it=>{
+      const a=it.text, b=p.b||'';
+      let status='matched', note='', conf=null;
+      const lowM=a.match(/[≥]|>=|不低于|不少于|不小于|至少/);
+      const av=nums(a), bv=nums(b);
+      if(lowM&&av.length&&bv.length){
+        if(bv[0]<av[0]){status='negative';note=`响应${bv[0]}低于要求${av[0]}`;}
+        else if(bv[0]>av[0]){status='positive';note=`响应${bv[0]}优于要求${av[0]}`;}
+        else {status='matched';}
+      } else if(/良好|较高|适当|合理|较好/.test(a)){
+        status='uncertain'; note='招标要求表述含糊'; conf=0.6;
+      } else {
+        const nb=normText(b);
+        if(nb && !hasAnyCounterpart(b,a)){ status='uncertain'; note='投标参数中未找到对应内容'; conf=0.5; }
+        else status='matched';
+      }
+      return {seq:it.seq,seqRaw:it.seqRaw,text:it.text,status,note,confidence:conf,bText:''};
+    });
+    return {row:p.row,items};
+  });
+}
+
+/* ========================= 真实 AI 比对 ========================= */
+const SYSTEM_PROMPT=`你是招投标文件对照专家。逐条比对招标要求(A列)与投标响应(B列)，对【每一条】招标要求给出判定状态。
+
+## 核心任务
+输入的每一行，其 A 列会被拆成若干【条目】。你必须对【每一个条目】都给出状态，不允许遗漏、不允许只输出有问题的条目。
+
+## 状态定义（每个条目必须归入且仅归入一类）
+- "matched" 匹配：
+  · 纯文本要求：先按【完全文本严格规则】判断——A 条目文本与 B 中对应内容严格一致（忽略空格/全角半角/标点差异）即匹配；
+  · 不满足严格规则时，按语义匹配且置信度达到要求（≥0.75）也为匹配；
+  · 含参数要求时，等于阈值即匹配（如"不少于8课时""内存≥8GB"，B 响应 8课时/8GB → 匹配）。
+- "positive" 正偏离：B 明确优于 A。只在 A 含参数要求且 B 数值【大于】阈值时成立（如要求≥8GB响应16GB、要求3年质保响应5年）。
+- "negative" 负偏离：B 明确低于/不满足 A。
+  · 含参数要求且 B 数值【小于】阈值（要求≥8GB响应4GB；要求不少于8课时响应6课时）；
+  · 或语义相关但内容严格不匹配。
+- "uncertain" 待确认：
+  · 【投标参数里找不到对应内容】——A 的这条要求在 B 中完全找不到对应内容；
+  · 或 A 表述含糊无量化标准、B 仅有语义相关但置信度较低（<0.75）。
+  · 注意：纯粹因为"要求写得含糊"不算，必须是"找不到对应内容"或"置信度低"。
+
+## 数值边界铁律（违反即错）
+· "≥X / 不少于X / 不低于X / 至少X"：B < X → negative；B = X → matched；B > X → positive。
+· "≤X / 不超过X / 不大于X"：B > X → negative；B = X → matched；B < X → positive。
+· 纯数字完全相等 → matched。
+· 不要把 B 括号里的分项数值当成总量（如"9自由度(颈部6+机身1+天线2)"的总值是9）。
+
+## 序号要求（重要）
+- 每条要给出它对应的【A 列原文序号】，必须与原文写法完全一致：原文"1、"就写"1、"，原文"二、1"就写"二、1"，原文"（3）"就写"（3）"。
+- 输入每条给了 n 字段（该条在 A 列中的全局序号，从 1 开始）。必须把 n 原样回传到输出的 n 字段，用于精确对齐，【不要改写、不要重新编号】。
+- 若该条目在 A 列原文没有序号（纯文字段落），seq 写空字符串 ""。
+
+## 输出格式（只输出 JSON，不要任何解释文字）
+{"results":[
+  {"row":2,
+   "items":[
+     {"n":1,"seq":"1、","status":"matched","note":""},
+     {"n":2,"seq":"二、1","status":"negative","note":"响应仅6课时，低于要求的8课时"},
+     {"n":3,"seq":"","status":"uncertain","note":"投标参数中未找到摄像头像素相关内容","confidence":0.5}
+   ]
+  }
+]}
+硬性要求：
+- items 数组必须【覆盖本次给你的"招标条目"里的每一条】，顺序与给出顺序一致，一个都不能少。
+  （输入里若有"本片条目数/本行总条目数"字段，说明本行条目多、已分片，只需判断本片给出的条目。）
+- status 只能是 matched / positive / negative / uncertain 四个值之一。
+- note：matched 与 positive 可留空字符串；negative 与 uncertain 必须写清原因（≤25字），uncertain 还需给 confidence（0~1，一位小数）。
+- items 数组长度必须等于该行 A 列的条目数。若你不确定某条属于哪条，也不要省略。
+- results 顺序/数量与输入 rows 一致，row 原样返回。严禁跨行引用其他行内容。`;
+
+/* 并发池：最多 limit 个任务同时执行，任一失败不影响其他 */
+async function runPool(items, limit, fn){
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker(){
+    while(cursor < items.length){
+      const idx = cursor++;
+      try{ results[idx] = await fn(items[idx], idx); }
+      catch(e){ results[idx] = null; }
+    }
+  }
+  const n = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({length: n}, worker));
+  return results;
+}
+
+function buildUserPayload(pairs){
+  // 把 A 列拆好的条目一并给模型，让它按条目逐一对应，避免自己猜分界。
+  // 若指定 onlyItems，则只发该行条目的一个分片（超多条目时分片调用，避免模型输出过慢）。
+  return JSON.stringify({rows:pairs.map(p=>{
+    const all=splitItems(p.a);
+    const use=(p.onlyItems&&p.onlyItems.length)?all.filter((_,i)=>p.onlyItems.includes(i)):all;
+    // 分片时【招标要求也要裁到本片】——否则模型看到整行全文、却只给了几条，
+    // 会按全文顺序返回，导致条目错位（曾出现"内存≥8GB"配上"支持图片导出"的理由）
+    const aForThis = (p.onlyItems && p.onlyItems.length)
+      ? use.map(it => `${it.seqRaw || ''}${it.text}`).join('\n')
+      : p.a;
+    return {
+      row:p.row,
+      // n 用【片内序号】1..k：分片时若给全局序号，模型容易对不上而丢条目
+      招标条目:use.map((it,k)=>({n:k+1,seq:it.seqRaw,text:it.text})),
+      招标要求:aForThis,
+      投标响应:p.b,
+      本片条目数:use.length,
+      本行总条目数:all.length
+    };
+  })});
+}
+
+async function aiGradeBatch(pairs,attempt=1){
+  const url=$('proxyUrl').value.replace(/\/$/,'')+'/api/grade';
+  const ctl=new AbortController(); const tid=setTimeout(()=>ctl.abort(),120000);
+  try{
+    const r=await fetch(url,{
+      method:'POST',headers:{'Content-Type':'application/json'},signal:ctl.signal,
+      body:JSON.stringify({messages:[
+        {role:'system',content:SYSTEM_PROMPT},
+        {role:'user',content:buildUserPayload(pairs)},
+      ]})
+    });
+    clearTimeout(tid);
+    if(!r.ok){
+      const e=await r.json().catch(()=>({}));
+      throw new Error('HTTP '+r.status+(e.message||e.detail?': '+(e.message||e.detail):''));
+    }
+    const data=await r.json();
+    const content=data.choices?.[0]?.message?.content;
+    if(!content) throw new Error('返回内容为空');
+    let clean=content.replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
+    const parsed=JSON.parse(clean);
+    if(!Array.isArray(parsed.results)) throw new Error('JSON 缺少 results 数组');
+    return parsed.results;
+  }catch(err){
+    clearTimeout(tid);
+    if(attempt<=2 && !/abort/i.test(err.name+err.message)){
+      await sleep(600*attempt);
+      return aiGradeBatch(pairs,attempt+1);
+    }
+    throw err;
+  }
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+
+
+
+
+/* ========================= 核验主流程 ========================= */
+$('btnVerify').addEventListener('click',async()=>{
+  if(S.busy||!S.rows.length) return;
+  S.busy=true; $('btnVerify').disabled=true; $('btnExport').disabled=true;
+  const cap=parseInt($('maxRows').value)||100;
+  const batch=parseInt($('batchSize').value)||10;
+  const rows=S.rows.slice(0,cap), truncated=S.rows.length-cap;
+  const prog=$('progress'); prog.classList.add('show');
+  const pbar=$('pbar'), pmsg=$('pmsg'), ppct=$('ppct');
+  let done=0; S.results=[];
+
+  // 整个流程包 try/finally：任一环节抛错也要复位按钮和 busy，
+  // 否则出错后按钮永久禁用，只能刷新页面。
+  try{
+
+  // v2.0：按【字数 + 条目数】双重限制分批。
+  // 条目数多的行（如无编号的参数块，一行能拆出 20+ 条）模型要逐条输出状态，
+  // 输出量大、耗时长，因此条目数超限就单独成批。
+  const MAX_CHARS=1200, MAX_ITEMS=12;
+  const batches=[];
+  let cur=[], curChars=0, curItems=0;
+  rows.forEach(p=>{
+    const len=(p.a||'').length+(p.b||'').length;
+    const nItems=splitItems(p.a).length;
+    const needNew=(cur.length>=batch || curChars+len>MAX_CHARS || curItems+nItems>MAX_ITEMS);
+    if(needNew && cur.length){ batches.push(cur); cur=[]; curChars=0; curItems=0; }
+    cur.push(p); curChars+=len; curItems+=nItems;
+  });
+  if(cur.length) batches.push(cur);
+
+  /* ============ v2.2：本地预判 + 并发调度 ============
+     1) 先用本地确定性规则判一遍（文本一致 / 数值方向 / 型号库 / 查无对应），
+        这些条目根本不需要 AI —— 实测全量 246 条中 64% 可本地判定。
+     2) 只把剩下的 pending 条目收集起来，按片并发发请求。
+     3) 结果合并后重跑装配（本地规则会再覆盖一次，保证一致性）。*/
+  const CONC = Math.max(1, parseInt($('concurrency')?.value) || 4);
+  const SHARD = 8;
+
+  // 阶段一：本地预判（同步，毫秒级）
+  pmsg.textContent = `本地预判中…（${rows.length} 行）`;
+  const pre = rows.map(p => ({ p, items: buildItemStates(p, { items: [] }) }));
+
+  // 收集需要 AI 的条目，按片切分
+  const jobs = [];
+  let pendingCount = 0;
+  for (const { p, items } of pre) {
+    const idxs = [];
+    items.forEach((it, i) => { if (it.status === 'pending') idxs.push(i); });
+    pendingCount += idxs.length;
+    for (let s = 0; s < idxs.length; s += SHARD) {
+      jobs.push({ ...p, onlyItems: idxs.slice(s, s + SHARD) });
+    }
+  }
+
+  // 阶段二：并发发送
+  let gradedMap = new Map();   // row -> {items:[...]}
+  if (jobs.length) {
+    let finished = 0;
+    const total = jobs.length;
+    // 注意：要用 pre（含 items），不能用 rows（原始行只有 row/a/b，没有 items）
+    const localDone = pre.reduce((s, r) => s + r.items.filter(i => i.status !== 'pending').length, 0);
+    pmsg.textContent = `AI 判定中…（本地已判 ${localDone} 条，剩余 ${pendingCount} 条分 ${total} 片，并发 ${CONC}）`;
+    await runPool(jobs, CONC, async (job) => {
+      try {
+        const arr = await aiGradeBatch([job]);
+        for (const r of arr) {
+          if (!r) continue;
+          const rowNo = Number(r.row);
+          if (!gradedMap.has(rowNo)) gradedMap.set(rowNo, { row: rowNo, items: [] });
+          const list = Array.isArray(r.items) ? r.items : [];
+          list.forEach((item, k) => {
+            // 片内序号 → 全局 idx（onlyItems 是 0-based 索引，it.idx 是 1-based）
+            if (job.onlyItems && job.onlyItems.length) {
+              const g = job.onlyItems[k];
+              item.n = (g != null ? g : job.onlyItems[0] + k) + 1;
+            }
+            gradedMap.get(rowNo).items.push(item);
+          });
+        }
+      } catch (e) { /* 单片的失败不影响其他片 */ }
+      finished++;
+      const pct = Math.round(finished / total * 100);
+      pbar.style.width = pct + '%'; ppct.textContent = pct + '%';
+      pmsg.textContent = `AI 判定中…（${finished}/${total} 片，并发 ${CONC}）`;
+    });
+  }
+
+  // 阶段三：装配（本地规则 + AI 结果）
+  const assembled = pre.map(({ p }) => {
+    const g = gradedMap.get(p.row) || { items: [] };
+    return { p, items: buildItemStates(p, g) };
+  });
+
+  // 阶段四：补漏——模型偶发漏返回（尤其短条目），把仍是 pending 的【单条重试一轮】。
+  // 这批量小（几十条），单条请求快，能兜住 glm-4-flash 的长 JSON 漏条问题。
+  // 按【行】聚合而不是单条：只给一条要求、模型缺少上下文，容易宽松判成匹配
+  const missingByRow = new Map();
+  assembled.forEach(({ p, items }) => {
+    const idxs = [];
+    items.forEach((it, idx) => { if (it.status === 'pending') idxs.push(idx); });
+    if (idxs.length) missingByRow.set(p.row, { p, idxs });
+  });
+  const missing = [...missingByRow.values()];
+  if (missing.length) {
+    const mTotal = missing.reduce((s, m) => s + m.idxs.length, 0);
+    pmsg.textContent = `补漏中…（${mTotal} 条模型未返回，按行重试）`;
+    let mDone = 0;
+    await runPool(missing, CONC, async (m) => {
+      try {
+        const arr = await aiGradeBatch([{ ...m.p, onlyItems: m.idxs }]);
+        for (const r of arr) {
+          const rowNo = Number(r.row);
+          if (!gradedMap.has(rowNo)) gradedMap.set(rowNo, { row: rowNo, items: [] });
+          const list = Array.isArray(r.items) ? r.items : [];
+          list.forEach((item, k) => {
+            const g = m.idxs[k];
+            item.n = (g != null ? g : m.idxs[0] + k) + 1;
+            gradedMap.get(rowNo).items.push(item);
+          });
+        }
+      } catch (e) { /* 补漏失败就保持待确认 */ }
+      mDone++;
+      pmsg.textContent = `补漏中…（${mDone}/${missing.length} 行）`;
+    });
+    // 用补到的结果重新装配
+    assembled.forEach(a => {
+      const g = gradedMap.get(a.p.row) || { items: [] };
+      a.items = buildItemStates(a.p, g);
+    });
+  }
+
+  for (const { p, items } of assembled) {
+    // 仍为 pending 的（补漏也没拿到）降级为待确认，并说明原因
+    items.forEach(it => {
+      if (it.status === 'pending') { it.status = 'uncertain'; it.note = it.note || 'AI 未返回判定，需人工复核'; it.confidence = it.confidence == null ? 0.5 : it.confidence; }
+    });
+    const cnt = { matched: 0, positive: 0, negative: 0, uncertain: 0 };
+    items.forEach(it => cnt[it.status]++);
+    const overall = (cnt.negative === 0 && cnt.uncertain === 0) ? '全部满足' : '部分满足';
+    S.results.push({
+      row: p.row, a: p.a, b: p.b, overall, items, cnt,
+      total: cnt.matched + cnt.positive + cnt.negative + cnt.uncertain,
+    });
+  }
+  done = rows.length;
+  pbar.style.width = '100%'; ppct.textContent = '100%';
+
+  if(truncated>0) toast(`已完成 ${rows.length} 行，超出上限的 ${truncated} 行未核验`);
+  else toast(`核验完成，共 ${rows.length} 行`);
+  writeResultsToSheet();
+  renderTable(false);
+  $('btnExport').disabled=false;
+  }catch(err){
+    // 出错了也要给出可读提示，不能只留控制台红字
+    console.error('[核验中断]', err);
+    const msg=(err && err.message) || String(err);
+    if(pmsg) pmsg.textContent = '核验中断：' + msg;
+    if(ppct) ppct.textContent = '—';
+    toast('核验中断：' + msg);
+  }finally{
+    S.busy=false; $('btnVerify').disabled=false;
+    try{ prog.classList.remove('show'); }catch(e){}
+  }
+});
+
+/* ========================= 结果格式化 ========================= */
+// 条目格式化：idx 用「第N项」统一，reason 截断，避免整段啰嗦影响 Excel 可读性
+// 条目的显示文本（截断与归一化）——高亮匹配必须用同一份，否则长文本截断了就匹配不上
+/* ============ v2.0 输出格式化（严格按需求基线） ============ */
+// 条目序号显示：原文有序号 → 【1、】【二、1】；无序号 → 不加【】
+function itemSeqLabel(it){
+  return it.seqRaw ? `【${it.seqRaw}】` : '';
+}
+// 条目正文（原文摘录，去掉首尾空白，保留内部空格）
+function itemBody(it){
+  return String(it.text||'').replace(/\s+/g,' ').trim();
+}
+// 明细行：`序号+原文->结论`
+function detailLine(it){
+  const seq=itemSeqLabel(it);
+  const body=itemBody(it);
+  let concl='';
+  if(it.status==='negative') concl=it.note||'响应低于要求';
+  else if(it.status==='uncertain') concl=`${it.note||'响应疑似匹配'}，置信度${(it.confidence??0.5).toFixed(1)}`;
+  return `${seq}${body}->${concl}`;
+}
+// 统计行
+function statLine(cnt,total){
+  if(cnt.negative===0&&cnt.uncertain===0){
+    return `共${total}项：匹配${cnt.matched}/正偏离${cnt.positive}`;
+  }
+  return `共${total}项：负偏离${cnt.negative}/待确认${cnt.uncertain}/匹配${cnt.matched}/正偏离${cnt.positive}`;
+}
+// 整行结论文本
+function formatResult(r){
+  if(r.overall==='核验失败') return `核验失败（接口异常）${r.note?'：'+r.note:''}`;
+  const c=r.cnt, total=r.total;
+  // 首行写明整体结论 + 统计，一眼可判
+  let s=`${r.overall}｜${statLine(c,total)}`;
+  const negs=r.items.filter(x=>x.status==='negative');
+  const uncs=r.items.filter(x=>x.status==='uncertain');
+  if(negs.length){
+    s+='\n\n负偏离：\n'+negs.map((x,i)=>`  ${i+1}、${detailLine(x)}`).join('\n');
+  }
+  if(uncs.length){
+    s+='\n\n待确认：\n'+uncs.map((x,i)=>`  ${i+1}、${detailLine(x)}`).join('\n');
+  }
+  return s;
+}
+// 是否需要标红（存在负偏离或待确认）
+function isNeg(r){ return r.cnt.negative>0 || r.cnt.uncertain>0; }
+
+/* ========================= 写回 Excel（含标红样式） ========================= */
+function writeResultsToSheet(){
+  const ws=S.ws;
+  // 保存原始范围，绝不缩小（原文件可能含 198 行，仅前 30 行有值）
+  const origMaxRow=XLSX.utils.decode_range(ws['!ref']).e.r;
+  // A/B 列样式：xlsx 库读取时会丢失原文件的"命名样式"(wrap/valign/font9)，
+  // 这里按招投标表格通用样式显式还原，避免导出后文字不换行、列宽看起来错乱。
+  const abStyle={alignment:{wrapText:true,vertical:'center',horizontal:'left'},
+    font:{name:'微软雅黑',sz:9}};
+  S.rows.forEach(p=>{
+    ['A','B'].forEach(col=>{
+      const addr=col+p.row, cell=ws[addr];
+      if(cell && cell.v!==undefined){ cell.s={...abStyle}; }
+    });
+  });
+
+  S.results.forEach(r=>{
+    const addr='C'+r.row;
+    const cell=ws[addr]||(ws[addr]={t:'s',v:''});
+    cell.t='s'; cell.v=formatResult(r);
+    cell.s={
+      alignment:{wrapText:true,vertical:'top',horizontal:'left'},
+      font:{name:'微软雅黑',sz:9,color:{rgb:'1F2937'}},
+      // v1.3：不再整格标红，负偏离文字高亮由富文本层实现
+      fill: {fgColor:{rgb:'FFFFFF'},patternType:'solid'},
+      border:{top:{style:'thin',color:{rgb:'E4E7ED'}},bottom:{style:'thin',color:{rgb:'E4E7ED'}},left:{style:'thin',color:{rgb:'E4E7ED'}},right:{style:'thin',color:{rgb:'E4E7ED'}}},
+    };
+  });
+  // 表头：只在 C1 为空时创建，避免覆盖用户原有内容
+  if(!ws['C1'] || ws['C1'].v===undefined || ws['C1'].v===''){
+    ws['C1']={t:'s',v:'核验结论',s:{font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'2563EB'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'}}};
+  }
+  // 列宽：只新增 C 列，保留 A/B 原宽度不动
+  if(!ws['!cols']) ws['!cols']=[];
+  while(ws['!cols'].length<3) ws['!cols'].push({});
+  ws['!cols'][2]={...ws['!cols'][2],wch:60};
+  // sheetFormat：还原默认行高/列宽，避免库写出时丢失
+  if(!ws.sheetFormat) ws.sheetFormat={defaultRowHeight:16.8,baseColWidth:10};
+  // 范围：扩展到 C 列，但行数取原始与结果的最大值，不缩小
+  const maxResultRow=Math.max(...S.results.map(r=>r.row),1);
+  const m=XLSX.utils.decode_range(ws['!ref']);
+  m.e.c=Math.max(m.e.c,2);
+  m.e.r=Math.max(origMaxRow,m.e.r,maxResultRow);
+  ws['!ref']=XLSX.utils.encode_range(m);
+}
+/* 生成富文本 run 的 XML（转义特殊字符），high=红色加粗 */
+function xmlRun(text,high){
+  const t=String(text??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rPr=high?'<rPr><rFont val="微软雅黑"/><b val="1"/><color rgb="FFC00000"/><sz val="9"/></rPr>'
+                  :'<rPr><rFont val="微软雅黑"/><sz val="9"/></rPr>';
+  return `<r>${rPr}<t xml:space="preserve">${t}</t></r>`;
+}
+// 把字符串按 needles 切成高亮/普通 run；needles 为需高亮的子串数组
+function richRuns(text,needles){
+  const s=String(text??'');
+  if(!needles||!needles.length) return xmlRun(s,false);
+  const ng=needles.filter(n=>n&&s.includes(n)).sort((a,b)=>b.length-a.length);
+  if(!ng.length) return xmlRun(s,false);
+  const ranges=[]; let i=0;
+  while(i<s.length){
+    let hit=-1,hitLen=0;
+    for(const n of ng){ if(s.startsWith(n,i)){hit=i;hitLen=n.length;break;} }
+    if(hit>=0){ ranges.push({t:s.slice(i,i+hitLen),h:true}); i+=hitLen; }
+    else { const nx=Math.min(...ng.map(n=>s.indexOf(n,i)).filter(x=>x>=0),s.length); ranges.push({t:s.slice(i,nx),h:false}); i=nx; }
+  }
+  return ranges.map(x=>xmlRun(x.t,x.h)).join('');
+}
+/* v2.0：只标红【招标列 A】中的负偏离/待确认条目（需求明确要求） */
+async function patchRichText(buf){
+  const zip=await JSZip.loadAsync(buf);
+  const sheetName=Object.keys(zip.files).find(n=>/^xl\/worksheets\/sheet1\.xml$/.test(n));
+  if(!sheetName) return {buf,replaced:[]};
+  let xml=await zip.file(sheetName).async('string');
+  const replaced=[];
+  S.results.forEach(r=>{
+    if(!isNeg(r)) return;
+    const aText=wsCell(r.row,1); if(!aText) return;
+    const flatA=String(aText).replace(/\s+/g,' ');
+    // 待标红的条目：负偏离 + 待确认
+    const bad=r.items.filter(x=>x.status==='negative'||x.status==='uncertain');
+    const needles=[];
+    bad.forEach(it=>{
+      const body=String(it.text||'').replace(/\s+/g,' ').trim();
+      if(!body) return;
+      if(flatA.includes(body)) needles.push(body);
+      else if(body.length>20 && flatA.includes(body.slice(0,20))) needles.push(body.slice(0,20));
+      else if(body.length>=8 && flatA.includes(body.slice(0,8))) needles.push(body.slice(0,8));
+    });
+    if(!needles.length) return;
+    const inline=`<is>${richRuns(String(aText),needles)}</is>`;
+    const re=new RegExp(`<c r="A${r.row}"[^>]*>([\\s\\S]*?)<\\/c>`);
+    const sm=(xml.match(re)||[''])[0].match(/ s="(\d+)"/);
+    xml=xml.replace(re,`<c r="A${r.row}"${sm?` s="${sm[1]}"`:''} t="inlineStr">${inline}</c>`);
+    replaced.push('A'+r.row);
+  });
+  zip.file(sheetName,xml);
+  const out=await zip.generateAsync({type:'uint8array',compression:'DEFLATE'});
+  return {buf:out,replaced};
+}
+// 从当前 sheet 取单元格原始文本
+function wsCell(row,col){
+  const addr=XLSX.utils.encode_cell({r:row-1,c:col-1});
+  const c=S.ws[addr];
+  if(!c) return null;
+  // 优先 c.v（纯文本）；c.r 在部分文件里是原始XML字符串，不能当文本用
+  if(c.v!==undefined && c.v!==null) return String(c.v);
+  if(Array.isArray(c.r)) return c.r.map(x=>x.t).join('');
+  return null;
+}
+$('btnExport').addEventListener('click',async()=>{
+  if(!S.wb||!S.results.length){ toast('请先完成核验'); return; }
+  const base=S.fileName.replace(/\.(xlsx|xls)$/i,'');
+  try{
+    const buf=XLSX.write(S.wb,{bookType:'xlsx',type:'array'});
+    const {buf:final,replaced}=await patchRichText(buf);
+    const blob=new Blob([final],{type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=base+'_核验结果.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast(`已导出，${replaced.length} 处负偏离文字高亮`);
+  }catch(e){ toast('导出失败：'+e.message); }
+});
+
+/* ========================= 结果渲染 ========================= */
+function renderTable(preview){
+  const body=$('resultBody');
+  if(preview){
+    const cap=parseInt($('maxRows').value)||100;
+    const shown=S.rows.slice(0,5);
+    body.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">文件预览（前 ${shown.length} 行，共 ${S.rows.length} 行${S.rows.length>cap?'，仅核验前 '+cap+' 行':''}）</div>
+    <div class="tbl-wrap"><table><thead><tr><th>行</th><th>A · 招标要求</th><th>B · 投标响应</th><th>C · 核验结论</th></tr></thead><tbody>
+    ${shown.map(r=>`<tr><td class="rn">${r.row}</td><td>${esc(r.a)||'<span style="color:#ccc">（空）</span>'}</td><td>${esc(r.b)||'<span style="color:#ccc">（空）</span>'}</td><td style="color:#ccc">待核验</td></tr>`).join('')}
+    </tbody></table></div>`;
+    return;
+  }
+  const neg=S.results.filter(r=>r.cnt.negative>0).length;
+  const unc=S.results.filter(r=>r.cnt.uncertain>0).length;
+  const pos=S.results.filter(r=>r.cnt.positive>0).length;
+  const ok=S.results.filter(r=>r.overall==='全部满足').length;
+  body.innerHTML=`
+    <div class="stats">
+      <div class="stat"><div class="n">${S.results.length}</div><div class="l">核验行数</div></div>
+      <div class="stat neg"><div class="n">${neg}</div><div class="l">含负偏离</div></div>
+      <div class="stat unc"><div class="n">${unc}</div><div class="l">含待确认</div></div>
+      <div class="stat pos"><div class="n">${ok}</div><div class="l">全部满足行</div></div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>行</th><th>A · 招标要求</th><th>B · 投标响应</th><th>C · 核验结论</th></tr></thead><tbody>
+    ${S.results.map(r=>{
+      return `<tr><td class="rn">${r.row}</td><td>${renderCellA(r)}</td><td>${esc(r.b)||'<span style="color:#ccc">（空）</span>'}</td><td>${renderRes(r)}</td></tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+/* v2.0：A 列渲染——负偏离/待确认条目标红 */
+function renderCellA(r){
+  const a=esc(r.a)||'<span style="color:#ccc">（空）</span>';
+  if(!isNeg(r)) return a;
+  let html=a;
+  r.items.filter(x=>x.status==='negative'||x.status==='uncertain').forEach(it=>{
+    const body=String(it.text||'').replace(/\s+/g,' ').trim();
+    if(!body) return;
+    let target=body;
+    if(!html.includes(body)) target=body.slice(0,Math.min(20,body.length));
+    if(target.length<6||!html.includes(target)) return;
+    const et=esc(target).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    html=html.replace(new RegExp(et,'g'),m=>`<span style="background:#FFE4E4;color:#B91C1C;font-weight:600">${m}</span>`);
+  });
+  return html;
+}
+function renderRes(r){
+  const c=r.cnt;
+  const tag=r.overall==='全部满足'?'ok':(c.negative?'n':'u');
+  let h=`<span class="tag ${tag}">${esc(r.overall)}</span>`;
+  h+=`<div style="font-size:11px;color:var(--muted);margin:2px 0 6px">${esc(statLine(c,r.total))}</div>`;
+  h+=`<div style="font-size:11px;color:var(--muted);margin:0 0 6px">${c.negative} 条负偏离 · ${c.uncertain} 条待确认</div>`;
+  const negs=r.items.filter(x=>x.status==='negative');
+  const uncs=r.items.filter(x=>x.status==='uncertain');
+  if(negs.length) h+=`<div class="sec res-neg">负偏离</div>`+negs.map((x,i)=>`<div class="lici res-neg">${i+1}、${esc(detailLine(x))}</div>`).join('');
+  if(uncs.length) h+=`<div class="sec res-unc" style="margin-top:6px">待确认</div>`+uncs.map((x,i)=>`<div class="lici res-unc">${i+1}、${esc(detailLine(x))}</div>`).join('');
+  return h;
+}
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ========================= 型号参数库面板 ========================= */
+function specRowHtml(model,spec,custom){
+  const f=(k)=>spec&&spec[k]!=null?spec[k]:'';
+  return `<tr data-model="${esc(model)}">
+    <td><input class="sp-model" value="${esc(model)}" placeholder="型号，如 i5-14500"></td>
+    <td><input class="sp-cores" type="number" step="1" value="${f('cores')}" placeholder="核"></td>
+    <td><input class="sp-threads" type="number" step="1" value="${f('threads')}" placeholder="线程"></td>
+    <td><input class="sp-base" type="number" step="0.1" value="${f('base')}" placeholder="基础GHz"></td>
+    <td><input class="sp-boost" type="number" step="0.1" value="${f('boost')}" placeholder="睿频GHz"></td>
+    <td><input class="sp-tdp" type="number" step="1" value="${f('tdp')}" placeholder="W"></td>
+    <td><input class="sp-vram" type="number" step="1" value="${f('vram')}" placeholder="GB"></td>
+    <td><input class="sp-size" type="number" step="0.1" value="${f('size')}" placeholder="英寸"></td>
+    <td><button class="sp-del" title="删除">✕</button></td>
+  </tr>`;
+}
+function renderSpecPanel(){
+  const custom=hwUserSpecs();
+  const keys=Object.keys(HW_SPECS).sort();
+  const builtin=keys.filter(k=>!custom[k]);
+  const user=Object.keys(custom).sort();
+  let h=`<div class="sp-tabs"><button class="sp-tab active" data-tab="all">全部（${keys.length}）</button>
+    <button class="sp-tab" data-tab="user">我添加的（${user.length}）</button>
+    <input class="sp-search" id="spSearch" placeholder="搜索型号…"></div>`;
+  h+=`<table class="sp-table"><thead><tr><th>型号</th><th>核数</th><th>线程</th><th>基础GHz</th><th>睿频GHz</th><th>功耗W</th><th>显存GB</th><th>英寸</th><th></th></tr></thead><tbody id="spBody">`;
+  keys.forEach(k=>{ h+=specRowHtml(k,HW_SPECS[k],!!custom[k]); });
+  h+=`</tbody></table>`;
+  h+=`<div class="sp-foot">
+    <button class="btn btn-ghost" id="spAdd">+ 添加型号</button>
+    <button class="btn btn-ghost" id="spExport">导出为 JSON</button>
+    <label class="btn btn-ghost">导入 JSON<input type="file" id="spImport" accept=".json" style="display:none"></label>
+    <button class="btn btn-ghost" id="spReset">恢复内置</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-primary" id="spSave">保存</button>
+  </div>
+  <div class="sp-tip">改动只保存在本机浏览器。判定时若投标侧是型号名（如 i5-14500），会自动展开参数与招标要求逐项比较；
+  招标要求若写明"性能不低于某型号"，则直接做型号间性能对比（核数/线程/睿频），功耗等散热约束不参与。</div>`;
+  $('spModalBody').innerHTML=h;
+  bindSpecPanel();
+}
+function bindSpecPanel(){
+  const body=$('spBody');
+  // 删除
+  body.querySelectorAll('.sp-del').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const tr=btn.closest('tr');
+      const model=tr.querySelector('.sp-model').value.trim();
+      if(!model) return;
+      const custom=hwUserSpecs(); delete custom[model]; delete custom[tr.dataset.model];
+      saveHwSpecs(custom); loadHwSpecs(); renderSpecPanel(); toast('已删除 '+model);
+    });
+  });
+  // 搜索
+  const search=$('spSearch');
+  if(search) search.addEventListener('input',()=>{
+    const q=search.value.trim().toLowerCase();
+    body.querySelectorAll('tr').forEach(tr=>{
+      const m=tr.querySelector('.sp-model').value.toLowerCase();
+      tr.style.display=(!q||m.includes(q))?'':'none';
+    });
+  });
+  // 标签
+  document.querySelectorAll('.sp-tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+      document.querySelectorAll('.sp-tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      const user=hwUserSpecs();
+      const mode=t.dataset.tab;
+      body.querySelectorAll('tr').forEach(tr=>{
+        const m=tr.querySelector('.sp-model').value.trim();
+        const isUser=!!user[m];
+        tr.style.display=(mode==='user'&&!isUser)?'none':'';
+      });
+    });
+  });
+  $('spAdd').addEventListener('click',()=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=specRowHtml('',{},true);
+    $('spBody').appendChild(tr);
+    tr.querySelector('.sp-model').focus();
+  });
+  $('spSave').addEventListener('click',()=>{
+    const custom={};
+    $('spBody').querySelectorAll('tr').forEach(tr=>{
+      const model=tr.querySelector('.sp-model').value.trim();
+      if(!model) return;
+      const num=s=>{ const v=parseFloat(tr.querySelector(s).value); return isNaN(v)?null:v; };
+      const spec={};
+      const cores=num('.sp-cores'), threads=num('.sp-threads'), base=num('.sp-base'),
+            boost=num('.sp-boost'), tdp=num('.sp-tdp'), vram=num('.sp-vram'), size=num('.sp-size');
+      if(cores!=null)spec.cores=cores; if(threads!=null)spec.threads=threads;
+      if(base!=null)spec.base=base; if(boost!=null)spec.boost=boost;
+      if(tdp!=null)spec.tdp=tdp; if(vram!=null)spec.vram=vram; if(size!=null)spec.size=size;
+      if(Object.keys(spec).length) custom[model]=spec;
+    });
+    saveHwSpecs(custom); loadHwSpecs(); renderSpecPanel();
+    toast('参数库已保存（'+Object.keys(custom).length+' 条自定义）');
+  });
+  $('spReset').addEventListener('click',()=>{
+    saveHwSpecs({}); loadHwSpecs(); renderSpecPanel(); toast('已恢复内置参数库');
+  });
+  $('spExport').addEventListener('click',()=>{
+    const blob=new Blob([JSON.stringify(hwUserSpecs(),null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='型号参数库_自定义.json'; a.click();
+  });
+  $('spImport').addEventListener('change',e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=()=>{ try{ const o=JSON.parse(rd.result); saveHwSpecs(o); loadHwSpecs(); renderSpecPanel(); toast('已导入'); }catch(err){ toast('JSON 解析失败'); } };
+    rd.readAsText(f);
+  });
+}
+$('btnSpecs').addEventListener('click',()=>{ renderSpecPanel(); $('spModal').classList.add('show'); });
+$('spClose').addEventListener('click',()=>$('spModal').classList.remove('show'));
+$('spModal').addEventListener('click',e=>{ if(e.target.id==='spModal') $('spModal').classList.remove('show'); });
+
+/* ========================= 初始化 ========================= */
+loadHwSpecs();
+detectMode();
+</script>
+
+</body>
+</html>
